@@ -4,18 +4,18 @@ import Hls from 'hls.js';
 
 function getDoubanImageProxyConfig(): {
   proxyType:
-    | 'direct'
-    | 'server'
-    | 'img3'
-    | 'cmliussss-cdn-tencent'
-    | 'cmliussss-cdn-ali'
-    | 'custom';
+  | 'direct'
+  | 'server'
+  | 'img3'
+  | 'cmliussss-cdn-tencent'
+  | 'cmliussss-cdn-ali'
+  | 'custom';
   proxyUrl: string;
 } {
   const doubanImageProxyType =
     localStorage.getItem('doubanImageProxyType') ||
     (window as any).RUNTIME_CONFIG?.DOUBAN_IMAGE_PROXY_TYPE ||
-    'direct';
+    'cmliussss-cdn-tencent';
   const doubanImageProxy =
     localStorage.getItem('doubanImageProxyUrl') ||
     (window as any).RUNTIME_CONFIG?.DOUBAN_IMAGE_PROXY ||
@@ -27,10 +27,15 @@ function getDoubanImageProxyConfig(): {
 }
 
 /**
- * 处理图片 URL，如果设置了图片代理则使用代理
+ * 处理图片 URL，统一使用服务器代理
  */
 export function processImageUrl(originalUrl: string): string {
   if (!originalUrl) return originalUrl;
+
+  // 如果已经是代理URL，直接返回
+  if (originalUrl.startsWith('/api/image-proxy')) {
+    return originalUrl;
+  }
 
   // 仅处理豆瓣图片代理
   if (!originalUrl.includes('doubanio.com')) {
@@ -59,6 +64,21 @@ export function processImageUrl(originalUrl: string): string {
     default:
       return originalUrl;
   }
+}
+
+/**
+ * 处理视频 URL，如果���置了代理则使用代理（与图片使用相同的代理配置）
+ */
+export function processVideoUrl(originalUrl: string): string {
+  if (!originalUrl) return originalUrl;
+
+  // 仅处理豆瓣视频代理
+  if (!originalUrl.includes('doubanio.com')) {
+    return originalUrl;
+  }
+
+  // 统一使用服务器代理
+  return `/api/video-proxy?url=${encodeURIComponent(originalUrl)}`;
 }
 
 /**
@@ -131,14 +151,14 @@ export async function getVideoResolutionFromM3u8(m3u8Url: string): Promise<{
               width >= 3840
                 ? '4K' // 4K: 3840x2160
                 : width >= 2560
-                ? '2K' // 2K: 2560x1440
-                : width >= 1920
-                ? '1080p' // 1080p: 1920x1080
-                : width >= 1280
-                ? '720p' // 720p: 1280x720
-                : width >= 854
-                ? '480p'
-                : 'SD'; // 480p: 854x480
+                  ? '2K' // 2K: 2560x1440
+                  : width >= 1920
+                    ? '1080p' // 1080p: 1920x1080
+                    : width >= 1280
+                      ? '720p' // 720p: 1280x720
+                      : width >= 854
+                        ? '480p'
+                        : 'SD'; // 480p: 854x480
 
             resolve({
               quality,
@@ -211,8 +231,7 @@ export async function getVideoResolutionFromM3u8(m3u8Url: string): Promise<{
     });
   } catch (error) {
     throw new Error(
-      `Error getting video resolution: ${
-        error instanceof Error ? error.message : String(error)
+      `Error getting video resolution: ${error instanceof Error ? error.message : String(error)
       }`
     );
   }
@@ -230,28 +249,4 @@ export function cleanHtmlTags(text: string): string {
 
   // 使用 he 库解码 HTML 实体
   return he.decode(cleanedText);
-}
-
-/**
- * 获取配置的超时时间（秒）
- * 从 localStorage 读取，如果不存在或无效则返回默认值3秒
- */
-export function getRequestTimeout(): number {
-  if (typeof window === 'undefined') {
-    return 30; // 服务器端返回默认值
-  }
-  
-  try {
-    const savedTimeout = localStorage.getItem('requestTimeout');
-    if (savedTimeout) {
-      const timeoutSeconds = parseInt(savedTimeout, 10);
-      if (!isNaN(timeoutSeconds) && timeoutSeconds >= 1 && timeoutSeconds <= 60) {
-        return timeoutSeconds;
-      }
-    }
-  } catch (error) {
-    console.warn('Failed to read timeout from localStorage:', error);
-  }
-  
-  return 30; // 默认30秒
 }
